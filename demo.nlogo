@@ -45,7 +45,7 @@ end
 to go
   ask consumers [
     ask products with-min [
-      price * distance myself
+      price + (distance-weight * distance myself)
     ] [
      create-link-with myself
     ]
@@ -150,6 +150,21 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+13
+98
+185
+131
+distance-weight
+distance-weight
+0
+100
+0.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -493,7 +508,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.1.1
+NetLogo 6.2.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
