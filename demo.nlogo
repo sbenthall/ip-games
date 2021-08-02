@@ -151,6 +151,21 @@ NIL
 NIL
 1
 
+SLIDER
+13
+98
+185
+131
+distance-weight
+distance-weight
+0
+100
+0.0
+1
+1
+NIL
+HORIZONTAL
+
 @#$#@#$#@
 ## WHAT IS IT?
 
