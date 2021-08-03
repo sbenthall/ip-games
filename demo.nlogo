@@ -45,7 +45,7 @@ end
 to go
   ask consumers [
     ask products with-min [
-      price * distance myself
+      price + (distance-weight * distance myself)
     ] [
      create-link-with myself
     ]
@@ -60,6 +60,8 @@ to go
 
   ask products [
     set revenue sum [flow] of my-links
+    plot revenue
+    output-print revenue
   ]
 end
 
@@ -160,11 +162,47 @@ distance-weight
 distance-weight
 0
 100
-0.0
+13.0
 1
 1
 NIL
 HORIZONTAL
+
+INPUTBOX
+12
+146
+106
+206
+distance-weight
+13.0
+1
+0
+Number
+
+PLOT
+5
+224
+205
+374
+product revenue
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"set-plot-x-range 0 max-pxcor" ""
+PENS
+"revenue" 1.0 1 -13791810 true "" "histogram [revenue] of products"
+
+OUTPUT
+6
+387
+204
+441
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -508,7 +546,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.1.1
+NetLogo 6.2.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
