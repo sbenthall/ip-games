@@ -162,7 +162,7 @@ distance-weight
 distance-weight
 0
 100
-13.0
+0.0
 1
 1
 NIL
@@ -174,7 +174,7 @@ INPUTBOX
 106
 206
 distance-weight
-13.0
+0.0
 1
 0
 Number
@@ -196,13 +196,6 @@ false
 "set-plot-x-range 0 max-pxcor" ""
 PENS
 "revenue" 1.0 1 -13791810 true "" "histogram [revenue] of products"
-
-OUTPUT
-6
-387
-204
-441
-11
 
 @#$#@#$#@
 ## WHAT IS IT?
