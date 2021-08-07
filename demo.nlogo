@@ -1,5 +1,5 @@
 globals [
-
+income
 ]
 
 breed [products product]
@@ -10,6 +10,10 @@ links-own [
   strength
   flow
 ]
+
+;;consumers-own [
+  ;;income
+;;]
 
 products-own [
  price
@@ -50,11 +54,7 @@ end
 
 to go
   ask consumers [
-    ask products with-min [
-      price + (distance-weight * distance myself)
-    ] [
-     create-link-with myself
-    ]
+    will-pay
 
     let num-links count my-links
     ask my-links [
@@ -67,9 +67,9 @@ to go
   ask products [
     set revenue sum [flow] of my-links
     let sort-rev sort [revenue] of products
-    show sort-rev
+    ;;show sort-rev
 
-    ;;plot revenue
+    plot revenue
   ]
 
   ;;plot [revenue] of products
@@ -79,7 +79,34 @@ end
 ;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;;;;;;;;;;;;;;;;;;
+to will-pay
+  if buy-strategy = "no limit" [
+    ask products with-min [
+      price + (distance-weight * distance myself)
+    ][create-link-with myself]
+  ]
+  if buy-strategy = "income driven" [
+    set-income
+    ask products with-min [
+      price + (distance-weight * distance myself)
+    ][if (price < income) [create-link-with myself]]
+  ]
+  if buy-strategy = "random limit" [
+    let limit random 200 + 50
+    ask products with-min[
+      price + (distance-weight * distance myself)
+    ][if (price < limit) [create-link-with myself]]
+  ]
+end
 
+to set-income
+  if consumer-income = "random" [
+    set income random 200 + 50
+  ]
+  if consumer-income = "constant" [
+    set income constant-income
+  ]
+end
 
 to render
   set pcolor (list 0 value 0)
@@ -240,7 +267,7 @@ mean [revenue] of products
 MONITOR
 85
 223
-142
+150
 268
 Max
 max [revenue] of products
@@ -266,20 +293,66 @@ MONITOR
 331
 # w/0 $$
 count products with-min [revenue]
-2
+0
 1
 11
 
 MONITOR
 9
 351
-66
+72
 396
 STD
 standard-deviation [revenue] of products
 1
 1
 11
+
+CHOOSER
+13
+477
+151
+522
+buy-strategy
+buy-strategy
+"no limit" "income driven" "random limit" "other 1" "other 2"
+1
+
+CHOOSER
+13
+540
+151
+585
+consumer-income
+consumer-income
+"random" "constant"
+1
+
+INPUTBOX
+14
+596
+112
+656
+constant-income
+134.0
+1
+0
+Number
+
+SLIDER
+15
+673
+187
+706
+constant-income
+constant-income
+0
+250
+134.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
