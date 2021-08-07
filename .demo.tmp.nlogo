@@ -229,7 +229,7 @@ price-strategy
 MONITOR
 10
 223
-66
+77
 268
 Mean
 mean [revenue] of products
