@@ -53,6 +53,9 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;
 
 to go
+  ask links [ die ]
+  clear-plot
+
   ask consumers [
     will-pay
 
@@ -65,7 +68,8 @@ to go
   ]
 
   ask products [
-    set revenue sum [flow] of my-links
+    let x-price price
+    set revenue sum [min (list x-price flow)] of my-links
     let sort-rev sort [revenue] of products
     ;;show sort-rev
 
@@ -136,6 +140,23 @@ to set-price
   if price-strategy = "random" [
     set price random 200 + 50
   ]
+end
+
+to reprice
+  let revenues map reprice-revenue (range 0 255)
+  let max-revenue max revenues
+
+  set price position max-revenue revenues
+  go
+end
+
+to-report reprice-revenue [new-price]
+  set price new-price
+  set color (list price 0 0)
+
+  go
+
+  report revenue
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -208,7 +229,7 @@ distance-weight
 distance-weight
 0
 100
-13.0
+57.0
 1
 1
 NIL
@@ -220,7 +241,7 @@ INPUTBOX
 106
 206
 distance-weight
-13.0
+57.0
 1
 0
 Number
@@ -241,7 +262,7 @@ true
 false
 "" ""
 PENS
-"revenue" 1.0 1 -7500403 true "" ""
+"revenue" 1.0 1 -7500403 true "" "histogram sort [revenue] of products"
 
 CHOOSER
 13
@@ -315,8 +336,8 @@ CHOOSER
 522
 buy-strategy
 buy-strategy
-"no limit" "income driven" "random limit" "other 1" "other 2"
-1
+"income driven" "no limit" "random limit" "other 1" "other 2"
+0
 
 CHOOSER
 13
@@ -326,7 +347,7 @@ CHOOSER
 consumer-income
 consumer-income
 "random" "constant"
-1
+0
 
 INPUTBOX
 14
@@ -353,6 +374,45 @@ constant-income
 1
 NIL
 HORIZONTAL
+
+BUTTON
+253
+618
+335
+651
+reprice
+ask product min [who] of products [\n  reprice\n]
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+MONITOR
+540
+626
+619
+671
+price-0
+[price] of product min [who] of products
+17
+1
+11
+
+MONITOR
+432
+615
+516
+660
+revenue-0
+[revenue] of product min [who] of products
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -696,7 +756,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.2.0
+NetLogo 6.1.1
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
