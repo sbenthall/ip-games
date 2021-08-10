@@ -69,7 +69,7 @@ to go
     let sort-rev sort [revenue] of products
     ;;show sort-rev
 
-    plot revenue
+    plot sort-rev
   ]
 
   ;;plot [revenue] of products
@@ -326,7 +326,7 @@ CHOOSER
 consumer-income
 consumer-income
 "random" "constant"
-1
+0
 
 INPUTBOX
 14
