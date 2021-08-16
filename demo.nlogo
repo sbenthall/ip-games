@@ -1,7 +1,3 @@
-globals [
-income
-]
-
 breed [products product]
 
 breed [consumers consumer]
@@ -11,9 +7,9 @@ links-own [
   flow
 ]
 
-;;consumers-own [
-  ;;income
-;;]
+consumers-own [
+  income
+]
 
 products-own [
  price
@@ -39,12 +35,6 @@ to setup
     make-consumer
   ]
 
-  set-current-plot "product revenue"
-  set-current-plot-pen "revenue"
-  set-plot-pen-interval 1
-  set-plot-x-range 0 max-pxcor
-  set-plot-y-range 0 max-pycor
-
   reset-ticks
 end
 
@@ -52,9 +42,9 @@ end
 ;;; Main Procedure  ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;
 
-to go
+to compute-revenue
   ask links [ die ]
-  clear-plot
+
 
   ask consumers [
     will-pay
@@ -73,8 +63,16 @@ to go
     ;;show sort-rev
   ]
 
+  set-current-plot "product revenue"
+  clear-plot
+  set-current-plot-pen "revenue"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
   let sort-rev reverse sort [revenue] of products
   foreach sort-rev [x -> plot x]
+
 
 end
 
@@ -89,10 +87,9 @@ to will-pay
     ][create-link-with myself]
   ]
   if buy-strategy = "income driven" [
-    set-income
     ask products with-min [
       price + (distance-weight * distance myself)
-    ][if (price < income) [create-link-with myself]]
+    ][if (price < [income] of myself) [create-link-with myself]]
   ]
   if buy-strategy = "random limit" [
     let limit random 200 + 50
@@ -117,7 +114,7 @@ end
 
 to make-product
   ;;; a stopgap
-  if random 50 < 1 [
+  if random-float 1.0 < product-rate [
     sprout-products 1 [
       set-price
       set color (list price 0 0)
@@ -129,6 +126,7 @@ to make-consumer
   sprout-consumers 1 [
     set size 0.1
     set color [pcolor] of patch-here
+    set-income
   ]
 end
 
@@ -141,19 +139,46 @@ to set-price
   ]
 end
 
-to reprice
+to reprice-brute-force
   let revenues map reprice-revenue (range 0 255)
   let max-revenue max revenues
 
+  set-current-plot "plot2"
+  clear-plot
+  set-current-plot-pen "p-r"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
+  foreach revenues [x -> plot x]
+
   set price position max-revenue revenues
-  go
+  compute-revenue
 end
+
+
+to reprice-fast
+  ;let price 128
+  let gradient 1
+
+  ;; TODO : faster price optimization
+  ;;  What to do here???
+
+  let revenues map reprice-revenue (range 0 255)
+  let max-revenue max revenues
+
+  foreach revenues [x -> plot x]
+
+  set price position max-revenue revenues
+  compute-revenue
+end
+
 
 to-report reprice-revenue [new-price]
   set price new-price
   set color (list price 0 0)
 
-  go
+  compute-revenue
 
   report revenue
 end
@@ -202,28 +227,11 @@ NIL
 NIL
 1
 
-BUTTON
-117
-28
-180
-61
-go
-go
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
 SLIDER
-13
-98
-185
-131
+10
+105
+182
+138
 distance-weight
 distance-weight
 0
@@ -248,8 +256,8 @@ Number
 PLOT
 755
 24
-1512
-643
+1348
+274
 product revenue
 NIL
 NIL
@@ -271,7 +279,7 @@ CHOOSER
 price-strategy
 price-strategy
 "constant" "random" "other 1" "other 2" "other 3"
-1
+0
 
 MONITOR
 10
@@ -380,7 +388,7 @@ BUTTON
 335
 651
 reprice
-ask product min [who] of products [\n  reprice\n]
+ask product min [who] of products [\n  reprice-brute-force\n]
 NIL
 1
 T
@@ -412,6 +420,56 @@ revenue-0
 17
 1
 11
+
+SLIDER
+11
+68
+184
+102
+product-rate
+product-rate
+0
+0.03
+0.01
+0.005
+1
+NIL
+HORIZONTAL
+
+BUTTON
+247
+585
+406
+619
+compute-revenue
+compute-revenue
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+PLOT
+763
+295
+963
+445
+plot2
+price
+revenue
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"p-r" 1.0 0 -16777216 true "" "plot count turtles"
 
 @#$#@#$#@
 ## WHAT IS IT?
