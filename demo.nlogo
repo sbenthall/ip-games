@@ -70,13 +70,12 @@ to go
   ask products [
     let x-price price
     set revenue sum [min (list x-price flow)] of my-links
-    let sort-rev sort [revenue] of products
     ;;show sort-rev
-
-    plot revenue
   ]
 
-  ;;plot [revenue] of products
+  let sort-rev reverse sort [revenue] of products
+  foreach sort-rev [x -> plot x]
+
 end
 
 
