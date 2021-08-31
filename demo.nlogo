@@ -23,6 +23,7 @@ products-own [
 
 patches-own [
   value
+  place
 ]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
@@ -36,8 +37,8 @@ to setup
   ask patches [
     set value random 255
     render
-    make-product
     make-consumer
+    make-product
   ]
 
   reset-ticks
@@ -57,7 +58,7 @@ to compute-revenue
     ask my-links [
       set strength 1.0 / num-links
       set color (list (150 / num-links) (150 / num-links) (150 / num-links))
-      set flow strength * [value] of myself
+      set flow strength * [128] of myself
     ]
   ]
 
@@ -121,11 +122,33 @@ end
 to make-product
   ;;; a stopgap, establishes # of products on grid
   ;; set production cost
-  if random-float 1.0 < product-rate [
+  if product-place = "random" [
+    if random-float 1.0 < product-rate [
     sprout-products 1 [
       set-price
       set color (list price 0 0)
       set product-cost random 100 + 150
+      ]
+    ]
+  ]
+  if product-place = "even disp" [
+    ;; sprout product at even intervals k between each product
+    ;; based roughly square map of x by y
+
+    ;; x/k = # of products in row
+    ;; iterate i -> range (0 x k)
+    if (remainder pxcor placement-rate) = 0 [
+
+      ;; y/k = # of products in column
+      ;; iterate j -> range (0 y k)
+      if (remainder pycor placement-rate) = 0 [
+        ;; at each [i j] sprout a product
+        sprout-products 1 [
+          set-price
+          set color (list price 0 0)
+          set product-cost random 100 + 150
+        ]
+      ]
     ]
   ]
 end
@@ -150,6 +173,10 @@ to set-price
     set price product-cost + profit-margin
   ]
 end
+
+;; create random desire for profit margins
+;; to-report profit-margin [profit]
+
 
 to reprice-brute-force
   let revenues map reprice-revenue (range 0 255)
@@ -178,7 +205,7 @@ end
 
 to reprice-fast
   ;; iterating over gradiant
-  let revenues map reprice-revenue (n-values 15 [x -> x * x])
+  let revenues map reprice-revenue (n-values 40 [x -> x ^ 1.5])
   let max-revenue max revenues
 
   set-current-plot "fast reprice"
@@ -191,27 +218,38 @@ to reprice-fast
   foreach revenues [x -> plot x]
 
   set price position max-revenue revenues
-  set price price ^ 2
+  set price price ^ 1.5
 
   output-print "fast calcuation: "
   output-type "max revenue = "
-  output-print max-revenue
+  output-print precision max-revenue 1
   output-type "max price = "
-  output-print price
+  output-print precision price 1
 
   compute-revenue
 end
 
 to equil-reprice
   ask products [
-    let revenues map reprice-revenue (n-values 15 [x -> x * x])
+    let revenues map reprice-revenue (n-values 40 [x -> x ^ 1.5])
     let max-revenue max revenues
     set price position max-revenue revenues
-    set price price ^ 2
+    set price price ^ 1.5
   ]
+
+  set-current-plot "product repriced"
+  clear-plot
+  set-current-plot-pen "pen-0"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
+  ;; sort price values and plot in descending order
+  let sort-price reverse sort [price] of products
+  foreach sort-price [x -> plot x]
+
+  output-print [precision price 1] of products
 end
-
-
 
 to-report reprice-revenue [new-price]
   set price new-price
@@ -275,7 +313,7 @@ distance-weight
 distance-weight
 0
 100
-85.0
+70.0
 1
 1
 NIL
@@ -327,7 +365,7 @@ MONITOR
 167
 Max
 max [revenue] of products
-3
+1
 1
 11
 
@@ -423,7 +461,7 @@ MONITOR
 556
 price-0
 [price] of product min [who] of products
-17
+1
 1
 11
 
@@ -447,7 +485,7 @@ product-rate
 product-rate
 0
 0.03
-0.025
+0.005
 0.001
 1
 NIL
@@ -531,7 +569,7 @@ PLOT
 1153
 563
 fast reprice
-sqrt price
+price ^ 1.5
 revenue
 0.0
 10.0
@@ -600,7 +638,7 @@ PLOT
 742
 746
 product repriced
-price
+NIL
 NIL
 0.0
 200.0
@@ -608,9 +646,34 @@ NIL
 500.0
 true
 false
-"" "update-equil-reprice-plot"
+"" ""
 PENS
-"pen-0" 1.0 0 -7500403 true "" ""
+"pen-0" 1.0 1 -7500403 true "" ""
+
+CHOOSER
+764
+590
+902
+635
+product-place
+product-place
+"random" "even disp"
+1
+
+SLIDER
+765
+650
+937
+683
+placement-rate
+placement-rate
+1
+21
+5.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?

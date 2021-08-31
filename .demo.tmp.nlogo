@@ -1,6 +1,6 @@
-globals [
-income
-]
+extensions []
+
+globals []
 
 breed [products product]
 
@@ -11,17 +11,19 @@ links-own [
   flow
 ]
 
-;;consumers-own [
-  ;;income
-;;]
+consumers-own [
+  income
+]
 
 products-own [
- price
- revenue
+  price
+  revenue
+  product-cost
 ]
 
 patches-own [
- value
+  value
+  place
 ]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
@@ -35,15 +37,9 @@ to setup
   ask patches [
     set value random 255
     render
-    make-product
     make-consumer
+    make-product
   ]
-
-  set-current-plot "product revenue"
-  set-current-plot-pen "revenue"
-  set-plot-pen-interval 1
-  set-plot-x-range 0 max-pxcor
-  set-plot-y-range 0 max-pycor
 
   reset-ticks
 end
@@ -52,7 +48,9 @@ end
 ;;; Main Procedure  ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;
 
-to go
+to compute-revenue
+  ask links [ die ]
+
   ask consumers [
     will-pay
 
@@ -60,19 +58,27 @@ to go
     ask my-links [
       set strength 1.0 / num-links
       set color (list (150 / num-links) (150 / num-links) (150 / num-links))
-      set flow strength * [value] of myself
+      set flow strength * [128] of myself
     ]
   ]
 
   ask products [
-    set revenue sum [flow] of my-links
-    let sort-rev sort [revenue] of products
-    ;;show sort-rev
-
-    plot sort-rev
+    let x-price price
+    set revenue sum [min (list x-price flow)] of my-links
   ]
 
-  ;;plot [revenue] of products
+  set-current-plot "product revenue"
+  clear-plot
+  set-current-plot-pen "revenue"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
+  ;; sort revenue and plot in descending order
+  let sort-rev reverse sort [revenue] of products
+  foreach sort-rev [x -> plot x]
+
+
 end
 
 
@@ -80,18 +86,18 @@ end
 ;;;
 ;;;;;;;;;;;;;;;;;;;
 to will-pay
-  if buy-strategy = "no limit" [
+  ;;selecting a buying strategy for consumers
+  if buy-strategy = "no limit" [ ;;min price that's close to consumer
     ask products with-min [
       price + (distance-weight * distance myself)
     ][create-link-with myself]
   ]
-  if buy-strategy = "income driven" [
-    set-income
+  if buy-strategy = "income driven" [ ;;limiting consumer to not exceed income
     ask products with-min [
       price + (distance-weight * distance myself)
-    ][if (price < income) [create-link-with myself]]
+    ][if (price < [income] of myself) [create-link-with myself]]
   ]
-  if buy-strategy = "random limit" [
+  if buy-strategy = "random limit" [ ;;establishing a random limit (like random preferences)
     let limit random 200 + 50
     ask products with-min[
       price + (distance-weight * distance myself)
@@ -100,10 +106,11 @@ to will-pay
 end
 
 to set-income
-  if consumer-income = "random" [
+  ;; set income for consumers
+  if consumer-income = "random" [ ;;more organic random generation
     set income random 200 + 50
   ]
-  if consumer-income = "constant" [
+  if consumer-income = "constant" [ ;;unified income for all consumers
     set income constant-income
   ]
 end
@@ -113,29 +120,145 @@ to render
 end
 
 to make-product
-  ;;; a stopgap
-  if random 50 < 1 [
+  ;;; a stopgap, establishes # of products on grid
+  ;; set production cost
+  if product-place = "random" [
+    if random-float 1.0 < product-rate [
     sprout-products 1 [
       set-price
       set color (list price 0 0)
+      set product-cost random 100 + 150
+      ]
     ]
   ]
+  if product-place = "even disp" [
+    ;; sprout product at even intervals k between each product
+    ;; based roughly square map of x by y
+
+    ;; x/k = # of products in row
+    ;; iterate i -> range (0 x k)
+    if (remainder pxcor placement-rate) = 0 [
+
+      ;; y/k = # of products in column
+      ;; iterate j -> range (0 y k)
+      if (remainder pycor placement-rate) = 0 [
+            ;; at each [i j] sprout a product
+        sprout-products 1 [
+          set-price
+          set color (list price 0 0)
+          set product-cost random 100 + 150
+        ]
+      ]
+    ]
+
+
 end
 
 to make-consumer
+  ;; creates consumers with income value
   sprout-consumers 1 [
     set size 0.1
     set color [pcolor] of patch-here
+    set-income
   ]
 end
 
 to set-price
   if price-strategy = "constant" [
-    set price 100
+    set price unified-price
   ]
   if price-strategy = "random" [
     set price random 200 + 50
   ]
+  if price-strategy = "economic driven" [
+    set price product-cost + profit-margin
+  ]
+end
+
+;; create random desire for profit margins
+;; to-report profit-margin [profit]
+
+
+to reprice-brute-force
+  let revenues map reprice-revenue (range 0 255)
+  let max-revenue max revenues
+
+  set-current-plot "price vs revenue"
+  clear-plot
+  set-current-plot-pen "p-r"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
+  foreach revenues [x -> plot x]
+
+  set price position max-revenue revenues
+
+  output-print "brute force calculations: "
+  output-type "max revenue = "
+  output-print max-revenue
+  output-type "max price = "
+  output-print price
+
+  compute-revenue
+end
+
+
+to reprice-fast
+  ;; iterating over gradiant
+  let revenues map reprice-revenue (n-values 40 [x -> x ^ 1.5])
+  let max-revenue max revenues
+
+  set-current-plot "fast reprice"
+  clear-plot
+  set-current-plot-pen "price"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
+  foreach revenues [x -> plot x]
+
+  set price position max-revenue revenues
+  set price price ^ 1.5
+
+  output-print "fast calcuation: "
+  output-type "max revenue = "
+  output-print precision max-revenue 1
+  output-type "max price = "
+  output-print precision price 1
+
+  compute-revenue
+end
+
+to equil-reprice
+  ask products [
+    let revenues map reprice-revenue (n-values 40 [x -> x ^ 1.5])
+    let max-revenue max revenues
+    set price position max-revenue revenues
+    set price price ^ 1.5
+  ]
+
+  set-current-plot "product repriced"
+  clear-plot
+  set-current-plot-pen "pen-0"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
+  ;; sort price values and plot in descending order
+  let sort-price reverse sort [price] of products
+  foreach sort-price [x -> plot x]
+
+  output-print [precision price 1] of products
+end
+
+to-report reprice-revenue [new-price]
+  set price new-price
+  set color (list price 0 0)
+
+  compute-revenue
+
+  report revenue
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -166,29 +289,12 @@ ticks
 30.0
 
 BUTTON
-17
-26
-90
-59
+12
+10
+85
+43
 setup
 setup
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-117
-28
-180
-61
-go
-go
 NIL
 1
 T
@@ -200,36 +306,25 @@ NIL
 1
 
 SLIDER
-13
-98
+12
+82
 185
-131
+115
 distance-weight
 distance-weight
 0
 100
-13.0
+70.0
 1
 1
 NIL
 HORIZONTAL
 
-INPUTBOX
-12
-146
-106
-206
-distance-weight
-13.0
-1
-0
-Number
-
 PLOT
-755
-24
-1512
-643
+751
+21
+1155
+191
 product revenue
 NIL
 NIL
@@ -241,23 +336,23 @@ true
 false
 "" ""
 PENS
-"revenue" 1.0 1 -7500403 true "" ""
+"revenue" 1.0 1 -7500403 true "" "histogram sort [revenue] of products"
 
 CHOOSER
-13
-413
-151
-458
+11
+224
+149
+269
 price-strategy
 price-strategy
-"constant" "random" "other 1" "other 2" "other 3"
+"constant" "random" "economic driven"
 1
 
 MONITOR
-10
-223
-66
-268
+12
+122
+68
+167
 Mean
 mean [revenue] of products
 1
@@ -265,21 +360,21 @@ mean [revenue] of products
 11
 
 MONITOR
-85
-223
-150
-268
+67
+122
+127
+167
 Max
 max [revenue] of products
-3
+1
 1
 11
 
 MONITOR
-9
-286
-72
-331
+12
+174
+75
+219
 # of Firms
 count products
 2
@@ -287,10 +382,10 @@ count products
 11
 
 MONITOR
-86
-286
-155
-331
+74
+174
+143
+219
 # w/0 $$
 count products with-min [revenue]
 0
@@ -298,10 +393,10 @@ count products with-min [revenue]
 11
 
 MONITOR
-9
-351
-72
-396
+125
+122
+185
+167
 STD
 standard-deviation [revenue] of products
 1
@@ -309,46 +404,273 @@ standard-deviation [revenue] of products
 11
 
 CHOOSER
-13
-477
-151
-522
+11
+268
+149
+313
 buy-strategy
 buy-strategy
-"no limit" "income driven" "random limit" "other 1" "other 2"
-1
+"income driven" "no limit" "random limit"
+0
 
 CHOOSER
-13
-540
-151
-585
+11
+313
+149
+358
 consumer-income
 consumer-income
 "random" "constant"
 0
 
-INPUTBOX
-14
-596
-112
-656
-constant-income
-134.0
-1
-0
-Number
-
 SLIDER
-15
-673
-187
-706
+11
+363
+183
+396
 constant-income
 constant-income
 0
 250
-134.0
+100.0
+1
+1
+NIL
+HORIZONTAL
+
+BUTTON
+11
+473
+93
+506
+reprice
+ask product min [who] of products [\n  reprice-brute-force\n]
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+MONITOR
+98
+511
+177
+556
+price-0
+[price] of product min [who] of products
+1
+1
+11
+
+MONITOR
+11
+510
+95
+555
+revenue-0
+[revenue] of product min [who] of products
+1
+1
+11
+
+SLIDER
+12
+47
+185
+80
+product-rate
+product-rate
+0
+0.03
+0.005
+0.001
+1
+NIL
+HORIZONTAL
+
+BUTTON
+87
+10
+186
+44
+compute-revenue
+compute-revenue
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+PLOT
+751
+197
+1154
+377
+price vs revenue
+price
+revenue
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"p-r" 1.0 0 -16777216 true "" "plot count turtles"
+
+SLIDER
+11
+398
+183
+431
+unified-price
+unified-price
+0
+250
+100.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+11
+434
+183
+467
+profit-margin
+profit-margin
+0
+100
+5.0
+1
+1
+NIL
+HORIZONTAL
+
+OUTPUT
+11
+597
+253
+747
+11
+
+PLOT
+751
+384
+1153
+563
+fast reprice
+price ^ 1.5
+revenue
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"price" 1.0 0 -16777216 true "" "plot count turtles"
+
+BUTTON
+11
+560
+96
+593
+fast reprice
+ask product min [who] of products [\nreprice-fast\n]
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+98
+560
+177
+593
+clear output
+clear-output
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+262
+571
+368
+604
+loop products
+equil-reprice
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+PLOT
+374
+571
+742
+746
+product repriced
+NIL
+NIL
+0.0
+200.0
+0.0
+500.0
+true
+false
+"" ""
+PENS
+"pen-0" 1.0 1 -7500403 true "" ""
+
+CHOOSER
+764
+590
+902
+635
+product-place
+product-place
+"random" "even disp"
+1
+
+SLIDER
+765
+650
+937
+683
+placement-rate
+placement-rate
+1
+21
+5.0
 1
 1
 NIL
