@@ -35,7 +35,12 @@ to setup
   resize-world -20 20 -20 20
 
   ask patches [
-    set value random 255
+    if consumer-income = "random" [ ;;more organic random generation
+      set value random 255
+    ]
+    if consumer-income = "constant" [ ;;unified income for all consumers
+      set value constant-income
+    ]
     render
     make-consumer
     make-product
@@ -58,7 +63,7 @@ to compute-revenue
     ask my-links [
       set strength 1.0 / num-links
       set color (list (150 / num-links) (150 / num-links) (150 / num-links))
-      set flow strength * [128] of myself
+      set flow strength * [value] of myself
     ]
   ]
 
@@ -105,16 +110,6 @@ to will-pay
   ]
 end
 
-to set-income
-  ;; set income for consumers
-  if consumer-income = "random" [ ;;more organic random generation
-    set income random 200 + 50
-  ]
-  if consumer-income = "constant" [ ;;unified income for all consumers
-    set income constant-income
-  ]
-end
-
 to render
   set pcolor (list 0 value 0)
 end
@@ -142,7 +137,7 @@ to make-product
       ;; y/k = # of products in column
       ;; iterate j -> range (0 y k)
       if (remainder pycor placement-rate) = 0 [
-            ;; at each [i j] sprout a product
+        ;; at each [i j] sprout a product
         sprout-products 1 [
           set-price
           set color (list price 0 0)
@@ -150,16 +145,15 @@ to make-product
         ]
       ]
     ]
-
-
+  ]
 end
 
 to make-consumer
-  ;; creates consumers with income value
+  ;; creates consumers, income = value of patch
   sprout-consumers 1 [
     set size 0.1
     set color [pcolor] of patch-here
-    set-income
+    set income [value] of patch-here
   ]
 end
 
@@ -177,7 +171,6 @@ end
 
 ;; create random desire for profit margins
 ;; to-report profit-margin [profit]
-
 
 to reprice-brute-force
   let revenues map reprice-revenue (range 0 255)
@@ -203,9 +196,8 @@ to reprice-brute-force
   compute-revenue
 end
 
-
 to reprice-fast
-  ;; iterating over gradiant
+
   let revenues map reprice-revenue (n-values 40 [x -> x ^ 1.5])
   let max-revenue max revenues
 
@@ -250,6 +242,30 @@ to equil-reprice
   foreach sort-price [x -> plot x]
 
   output-print [precision price 1] of products
+end
+
+to add-product
+  ;; given a set of products put a new product on the map
+  ;; new product should be at max revenue location
+
+  ;; steps to function
+
+  ;; find equilibrium price
+  ;; using equilibrium price find patch with max revenue
+
+  ;; ask if a product is on this patch
+  ;; if empty sprout patch
+end
+
+to-report equil-price
+  ask products [
+    let revenues map reprice-revenue (n-values 40 [x -> x ^ 1.5])
+    let max-revenue max revenues
+    set price position max-revenue revenues
+    set price price ^ 1.5
+  ]
+
+  report price
 end
 
 to-report reprice-revenue [new-price]
@@ -314,7 +330,7 @@ distance-weight
 distance-weight
 0
 100
-70.0
+23.0
 1
 1
 NIL
@@ -421,7 +437,7 @@ CHOOSER
 consumer-income
 consumer-income
 "random" "constant"
-0
+1
 
 SLIDER
 11
@@ -432,7 +448,7 @@ constant-income
 constant-income
 0
 250
-100.0
+102.0
 1
 1
 NIL
@@ -486,7 +502,7 @@ product-rate
 product-rate
 0
 0.03
-0.005
+0.025
 0.001
 1
 NIL
@@ -670,7 +686,7 @@ placement-rate
 placement-rate
 1
 21
-5.0
+17.0
 1
 1
 NIL
