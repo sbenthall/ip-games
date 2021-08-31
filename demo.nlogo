@@ -43,8 +43,9 @@ to setup
     ]
     render
     make-consumer
-    make-product
   ]
+
+  make-product
 
   reset-ticks
 end
@@ -118,30 +119,38 @@ to make-product
   ;;; a stopgap, establishes # of products on grid
   ;; set production cost
   if product-place = "random" [
-    if random-float 1.0 < product-rate [
-    sprout-products 1 [
-      set-price
-      set color (list price 0 0)
-      set product-cost random 100 + 150
-      ]
-    ]
-  ]
-  if product-place = "even disp" [
-    ;; sprout product at even intervals k between each product
-    ;; based roughly square map of x by y
-
-    ;; x/k = # of products in row
-    ;; iterate i -> range (0 x k)
-    if (remainder pxcor placement-rate) = 0 [
-
-      ;; y/k = # of products in column
-      ;; iterate j -> range (0 y k)
-      if (remainder pycor placement-rate) = 0 [
-        ;; at each [i j] sprout a product
+    ask patches [
+      if random-float 1.0 < product-rate [
         sprout-products 1 [
           set-price
           set color (list price 0 0)
           set product-cost random 100 + 150
+        ]
+      ]
+    ]
+  ]
+
+  if product-place = "even disp" [
+    let pp 0.3
+
+    let pr round (world-width * pp)
+    ;; sprout product at even intervals k between each product
+    ;; based roughly square map of x by y
+    show pr
+    ;; x/k = # of products in row
+    ;; iterate i -> range (0 x k)
+    foreach (range min-pxcor max-pxcor pr)[
+      x ->
+
+      foreach (range min-pycor max-pycor pr) [
+        y ->
+
+        ask patch x y [
+          sprout-products 1 [
+            set-price
+            set color (list price 0 0)
+            set product-cost random 100 + 150
+          ]
         ]
       ]
     ]
@@ -222,6 +231,64 @@ to reprice-fast
   compute-revenue
 end
 
+to reprice-dichotomous
+  let lower-bound 0
+  let upper-bound 255
+
+  let lower-bound-revenue reprice-revenue lower-bound
+  let upper-bound-revenue reprice-revenue upper-bound
+
+  let iterations 0
+
+  let midpoint 0
+  let midpoint-plus 0
+
+  let midpoint-revenue 0
+  let midpoint-plus-revenue 0
+
+  while [upper-bound - lower-bound > 3] [
+    set iterations iterations + 1
+
+    type "i:"
+    type iterations
+    type " lb:"
+    type lower-bound
+    type " ub:"
+    type upper-bound
+    print ""
+
+    set midpoint round ((upper-bound + lower-bound) / 2)
+    set midpoint-plus midpoint + 1
+
+    set midpoint-revenue reprice-revenue midpoint
+    set midpoint-plus-revenue reprice-revenue midpoint-plus
+
+    type "mp"
+    type midpoint
+    type "mpr:"
+    type midpoint-revenue
+    type "mp+r:"
+    type midpoint-plus-revenue
+    print ""
+
+    ifelse midpoint-revenue >= midpoint-plus-revenue [
+      set upper-bound midpoint-plus
+      set upper-bound-revenue midpoint-plus-revenue
+    ] [
+      set lower-bound midpoint
+      set lower-bound-revenue midpoint-revenue
+    ]
+  ]
+
+  ifelse midpoint-revenue > midpoint-plus-revenue [
+    set price midpoint
+  ][
+    set price midpoint-plus
+  ]
+
+  compute-revenue
+end
+
 to equil-reprice
   ask products [
     let revenues map reprice-revenue (n-values 40 [x -> x ^ 1.5])
@@ -280,11 +347,11 @@ end
 GRAPHICS-WINDOW
 199
 21
-740
-563
+800
+623
 -1
 -1
-13.0
+14.463415
 1
 10
 1
@@ -330,17 +397,17 @@ distance-weight
 distance-weight
 0
 100
-23.0
+40.0
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-751
-21
-1155
-191
+813
+23
+1217
+193
 product revenue
 NIL
 NIL
@@ -448,7 +515,7 @@ constant-income
 constant-income
 0
 250
-102.0
+78.0
 1
 1
 NIL
@@ -502,7 +569,7 @@ product-rate
 product-rate
 0
 0.03
-0.025
+0.029
 0.001
 1
 NIL
@@ -526,10 +593,10 @@ NIL
 1
 
 PLOT
-751
-197
-1154
-377
+813
+199
+1216
+379
 price vs revenue
 price
 revenue
@@ -552,7 +619,7 @@ unified-price
 unified-price
 0
 250
-100.0
+88.0
 1
 1
 NIL
@@ -574,17 +641,17 @@ NIL
 HORIZONTAL
 
 OUTPUT
-11
-597
-253
-747
+6
+632
+248
+782
 11
 
 PLOT
-751
-384
-1153
-563
+814
+389
+1216
+568
 fast reprice
 price ^ 1.5
 revenue
@@ -604,7 +671,7 @@ BUTTON
 96
 593
 fast reprice
-ask product min [who] of products [\nreprice-fast\n]
+ask products with-min [revenue] [\nreprice-dichotomous\n]
 NIL
 1
 T
@@ -634,9 +701,9 @@ NIL
 
 BUTTON
 262
-571
+627
 368
-604
+660
 loop products
 equil-reprice
 NIL
@@ -650,10 +717,10 @@ NIL
 1
 
 PLOT
-374
-571
-742
-746
+379
+625
+747
+800
 product repriced
 NIL
 NIL
@@ -668,10 +735,10 @@ PENS
 "pen-0" 1.0 1 -7500403 true "" ""
 
 CHOOSER
-764
-590
-902
-635
+810
+578
+948
+623
 product-place
 product-place
 "random" "even disp"
@@ -1034,7 +1101,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.2.0
+NetLogo 6.1.1
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
