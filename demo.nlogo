@@ -84,7 +84,6 @@ to compute-revenue
   let sort-rev reverse sort [revenue] of products
   foreach sort-rev [x -> plot x]
 
-
 end
 
 
@@ -286,6 +285,17 @@ to reprice-dichotomous
     set price midpoint-plus
   ]
 
+  set-current-plot "product repriced"
+  clear-plot
+  set-current-plot-pen "pen-0"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
+  ;; sort price values and plot in descending order
+  let sort-price reverse sort [price] of products
+  foreach sort-price [x -> plot x]
+
   compute-revenue
 end
 
@@ -313,8 +323,15 @@ end
 
 to add-product
   ;; given a set of products put a new product on the map
-  ;; new product should be at max revenue location
+  ;; find patch with max revenue
 
+
+
+  ;; new product created at [0,0]
+  create-ordered-products 1 [lt 10 fd 10] ;; can set location position [fd 1 lt 2]
+
+
+  ;; should be at max revenue location
   ;; steps to function
 
   ;; find equilibrium price
@@ -325,12 +342,7 @@ to add-product
 end
 
 to-report equil-price
-  ask products [
-    let revenues map reprice-revenue (n-values 40 [x -> x ^ 1.5])
-    let max-revenue max revenues
-    set price position max-revenue revenues
-    set price price ^ 1.5
-  ]
+
 
   report price
 end
@@ -515,7 +527,7 @@ constant-income
 constant-income
 0
 250
-78.0
+94.0
 1
 1
 NIL
@@ -541,10 +553,10 @@ NIL
 MONITOR
 98
 511
-177
+164
 556
-price-0
-[price] of product min [who] of products
+price-min
+min [price] of products
 1
 1
 11
@@ -554,8 +566,8 @@ MONITOR
 510
 95
 555
-revenue-0
-[revenue] of product min [who] of products
+revenue-min
+min [revenue] of products
 1
 1
 11
@@ -641,10 +653,10 @@ NIL
 HORIZONTAL
 
 OUTPUT
-6
-632
-248
-782
+11
+650
+253
+800
 11
 
 PLOT
@@ -758,6 +770,45 @@ placement-rate
 1
 NIL
 HORIZONTAL
+
+MONITOR
+11
+598
+111
+643
+revenue-max
+max [revenue] of products
+1
+1
+11
+
+MONITOR
+98
+598
+164
+643
+price-max
+max [price] of products
+1
+1
+11
+
+BUTTON
+264
+682
+364
+715
+Add Product
+add-product
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1101,7 +1152,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.1.1
+NetLogo 6.2.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
