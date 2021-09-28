@@ -74,6 +74,7 @@ end
 
 ;; Initial Conditions ;;
 
+
 to render
   set pcolor (list 0 value 0)
 end
