@@ -1,11 +1,20 @@
 globals []
 breed [products product]
 breed [consumers consumer]
+breed [ip-ranges ip-range]
+undirected-link-breed [ip-links ip-link]
+undirected-link-breed [consumer-links consumer-link]
 
-links-own [
-  strength
-  flow
+consumer-links-own [
+  consumer-strength
+  consumer-flow
 ]
+
+ip-links-own [
+  ip-strength
+  ip-flow
+]
+
 consumers-own [
   income
 ]
@@ -23,6 +32,8 @@ patches-own [
 to setup
   clear-all
   resize-world -20 20 -20 20
+
+  set-default-shape ip-ranges "thin ring"
 
   ask patches [
     if consumer-income = "random" [
@@ -46,17 +57,17 @@ to compute-revenue
 
   ask consumers [
     will-pay
-    let num-links count my-links
-    ask my-links [
-      set strength 1.0 / num-links
+    let num-links count my-consumer-links
+    ask my-consumer-links [
+      set consumer-strength 1.0 / num-links
       set color (list (150 / num-links) (150 / num-links) (150 / num-links))
-      set flow strength * [value] of myself
+      set consumer-flow consumer-strength * [value] of myself
     ]
   ]
 
   ask products [
     let x-price price
-    set revenue sum [min (list x-price flow)] of my-links
+    set revenue sum [min (list x-price consumer-flow)] of my-links
   ]
 
   set-current-plot "product revenue"
@@ -73,7 +84,6 @@ to compute-revenue
 end
 
 ;; Initial Conditions ;;
-
 
 to render
   set pcolor (list 0 value 0)
@@ -128,12 +138,12 @@ to will-pay
     if buy-strategy = "no limit" [
     ask products with-min [
       price + (distance-weight * distance myself)
-    ][create-link-with myself]
+    ][create-consumer-link-with myself]
   ]
   if buy-strategy = "income driven" [
     ask products with-min [
       price + (distance-weight * distance myself)
-    ][if ((price + (distance-weight * distance myself)) < [income] of myself) [create-link-with myself]]
+    ][if ((price + (distance-weight * distance myself)) < [income] of myself) [create-consumer-link-with myself]]
   ]
 end
 
@@ -247,6 +257,59 @@ to-report reprice-revenue [new-price]
   report revenue
 end
 
+;; intellectual property interactions ;;
+
+to ip-interact
+  ;; show each products ip range
+  ;; will show all at once
+  ask products [
+    make-ip-range
+  ]
+
+  ;; calculate the strength of ip for each product
+  ask ip-ranges [
+    let num-links count my-ip-links
+    ask my-ip-links [
+      set ip-strength 1.0 / num-links
+      set ip-flow ip-strength * [value] of myself
+    ]
+  ]
+
+  ;; determine if the ip of one product is invading the space of another
+  ;; if invading compare ip-flow for each product
+  ;; if a product has lower ip-flow shrink the size of the of it's ip by one
+  ;; continue until no
+end
+
+to make-ip-range
+  ask ip-links [die]
+  ;; creates the ip-range with inherited characteristics of it's parent turtle
+  ;; the visible parent turtle is the product
+  hatch-ip-ranges 1 [
+    set-ip-size
+    ;; change the transparency color
+    ifelse is-list? color
+    [set color lput transparency sublist color 0 3]
+    [set color lput transparency extract-rgb color]
+    ;; set thickness of halo to half a patch
+    __set-line-thickness 0.3
+    ;; create an invisible directed link from the product to the halo
+    create-ip-link-with myself [
+      tie
+      hide-link]
+  ]
+end
+
+to set-ip-size
+  ;; set size for product ip range
+  if ip-size = "constant" [
+    set size constant-ip
+  ]
+  if ip-size = "random" [
+    set size random 20
+  ]
+end
+
 to add-product
   ;; given a set of products put a new product on the map
   ;; find patch with max revenue
@@ -263,7 +326,6 @@ to add-product
   ;; ask if a product is on this patch
   ;; if empty sprout patch
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 200
@@ -551,7 +613,7 @@ CHOOSER
 product-place
 product-place
 "even disp" "random"
-0
+1
 
 SLIDER
 8
@@ -666,6 +728,80 @@ min [revenue] of products
 2
 1
 11
+
+SLIDER
+759
+55
+931
+88
+constant-ip
+constant-ip
+0
+20
+9.0
+.5
+1
+NIL
+HORIZONTAL
+
+CHOOSER
+759
+11
+892
+56
+ip-size
+ip-size
+"constant" "random"
+0
+
+BUTTON
+758
+151
+864
+184
+Show IP Area
+ask products [make-ip-range]
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+760
+96
+932
+129
+transparency
+transparency
+0
+100
+45.0
+1
+1
+NIL
+HORIZONTAL
+
+BUTTON
+759
+193
+864
+226
+Clear IP Area
+ask ip-ranges [die]
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -936,6 +1072,15 @@ Circle -16777216 true false 30 30 240
 Circle -7500403 true true 60 60 180
 Circle -16777216 true false 90 90 120
 Circle -7500403 true true 120 120 60
+
+thin ring
+false
+0
+Circle -7500403 false true 105 90 0
+Circle -7500403 false true 30 30 240
+Circle -7500403 false true 27 27 246
+Circle -7500403 false true 30 30 240
+Circle -7500403 false true 27 27 246
 
 tree
 false
