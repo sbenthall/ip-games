@@ -2,6 +2,7 @@ globals []
 breed [products product]
 breed [consumers consumer]
 breed [ip-ranges ip-range]
+breed [temp-ip-ranges temp-ip-range]
 undirected-link-breed [ip-links ip-link]
 undirected-link-breed [consumer-links consumer-link]
 
@@ -9,12 +10,18 @@ consumer-links-own [
   consumer-strength
   consumer-flow
 ]
-
 ip-links-own [
   ip-strength
   ip-flow
 ]
-
+temp-ip-ranges-own [
+  temp-ip-power
+  temp-radius
+]
+ip-ranges-own [
+  ip-power
+  radius
+]
 consumers-own [
   income
 ]
@@ -34,6 +41,7 @@ to setup
   resize-world -20 20 -20 20
 
   set-default-shape ip-ranges "thin ring"
+  set-default-shape temp-ip-ranges "thin ring"
 
   ask patches [
     if consumer-income = "random" [
@@ -53,9 +61,12 @@ end
 ;; Main Procedure  ;;
 
 to compute-revenue
-  ask links [ die ]
+  ask consumer-links [ die ]
 
   ask consumers [
+
+    ;; set up a condition for when consumer will chose general will-pay or ip-based will-pay
+
     will-pay
     let num-links count my-consumer-links
     ask my-consumer-links [
@@ -67,7 +78,7 @@ to compute-revenue
 
   ask products [
     let x-price price
-    set revenue sum [min (list x-price consumer-flow)] of my-links
+    set revenue sum [min (list x-price consumer-flow)] of my-consumer-links
   ]
 
   set-current-plot "product revenue"
@@ -156,6 +167,14 @@ to set-price
   ]
   if price-strategy = "economic driven" [
     set price product-cost + profit-margin
+  ]
+end
+
+;; create a will-pay based on ip ranges
+to must-buy-from
+  if buy-strategy = "no limit" [
+  ]
+  if buy-strategy = "income driven" [
   ]
 end
 
@@ -260,14 +279,105 @@ end
 ;; intellectual property interactions ;;
 
 to ip-interact
-  ;; show each products ip range
-  ;; will show all at once
-  ask products [
-    make-ip-range
+  ;; strength or potential of ip for each product is held in ip-power value
+  ;; determine if the ip of one product is invading the space of another
+  ;; ask turtle for the distance to another turtle
+
+  ; sort by turtle with higher ip-power (probably not perfect as there may be turtles with same ip-power)
+  ; goal - find turtle with highest ip-power (selecting starting turtle)
+
+  foreach sort-by [ [a b] -> [ip-power] of a > [ip-power] of b ] ip-ranges [ t ->
+    ask t [
+
+      let start-xcor xcor
+      let start-ycor ycor
+
+      ; find the nearest product
+      let closest-product min-one-of other ip-ranges [distance myself]
+      let closest-xcor [xcor] of closest-product
+      let closest-ycor [ycor] of closest-product
+
+      let new-dist 0
+      let t-radius [radius] of t
+      output-type "radius of t "
+      output-print t-radius
+      let closest-product-radius [radius] of closest-product
+      output-type "radius of closest product "
+      output-print closest-product-radius
+
+      ; calculate distance between two products
+      set new-dist calculate-dist closest-xcor start-xcor closest-ycor start-ycor
+
+      ; check if two products' IP is overlapping, don't stop until no longer overlapping
+      if ( t-radius + closest-product-radius <= new-dist ) [
+
+        ifelse ( [ip-power] of t > [ip-power] of closest-product) [
+
+          ;reduce the size of the product with less ip-power
+          set radius (closest-product-radius - 1)
+          output-type "updated radius for closest product "
+          output-print radius
+        ][
+          set radius t-radius
+          output-type "updated radius for t "
+          output-print radius
+        ]
+      ]
+    ]
   ]
 
-  ;; calculate the strength of ip for each product
-  ask ip-ranges [
+end
+
+to-report calculate-dist [x1 x2 y1 y2]
+  let dist ( sqrt ((x2 - x1) ^ 2 + (y2 - y1) ^ 2) )
+  report dist
+end
+
+to update-ip-range
+  ask ip-links [die]
+  ask products [
+    hatch-temp-ip-ranges 1 [
+      set size (temp-radius * 2)
+      ifelse is-list? color
+      [set color lput transparency sublist color 0 3]
+      [set color lput transparency extract-rgb color]
+      __set-line-thickness 0.2
+      create-ip-link-with myself
+    ]
+    let num-links count my-ip-links
+    ask my-ip-links [
+      set ip-strength 1.0 / num-links
+      set ip-flow ip-strength * [value] of myself
+    ]
+  ]
+  ask temp-ip-ranges [
+    set temp-ip-power sum [ip-flow] of my-ip-links * temp-radius
+  ]
+
+end
+
+to set-temp-ip-ranges-values
+  set temp-radius [radius] of ip-ranges
+end
+
+to make-ip-range
+  ask ip-links [die]
+  ;; creates the ip-range with inherited characteristics of it's parent turtle
+  ;; the visible parent turtle is the product
+  ask products [
+    hatch-ip-ranges 1 [
+      set-ip-size
+      ;; change the transparency color
+      ifelse is-list? color
+      [set color lput transparency sublist color 0 3]
+      [set color lput transparency extract-rgb color]
+      ;; set thickness of halo to half a patch
+      __set-line-thickness 0.3
+      ;; create an undirected link from the product to the halo
+      create-ip-link-with myself
+    ]
+
+  ;; calculates ip potential which is based on consumer income and size of product ip
     let num-links count my-ip-links
     ask my-ip-links [
       set ip-strength 1.0 / num-links
@@ -275,38 +385,34 @@ to ip-interact
     ]
   ]
 
-  ;; determine if the ip of one product is invading the space of another
-  ;; if invading compare ip-flow for each product
-  ;; if a product has lower ip-flow shrink the size of the of it's ip by one
-  ;; continue until no
+  ask ip-ranges [
+    set ip-power sum [ip-flow] of my-ip-links * radius
+  ]
 end
 
-to make-ip-range
-  ask ip-links [die]
-  ;; creates the ip-range with inherited characteristics of it's parent turtle
-  ;; the visible parent turtle is the product
-  hatch-ip-ranges 1 [
-    set-ip-size
-    ;; change the transparency color
-    ifelse is-list? color
-    [set color lput transparency sublist color 0 3]
-    [set color lput transparency extract-rgb color]
-    ;; set thickness of halo to half a patch
-    __set-line-thickness 0.3
-    ;; create an invisible directed link from the product to the halo
-    create-ip-link-with myself [
-      tie
-      hide-link]
-  ]
+to plot-ip
+
+  set-current-plot "ip power"
+  clear-plot
+  set-current-plot-pen "flow"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
+  let sort-ip-power reverse sort [ip-power] of ip-ranges
+  foreach sort-ip-power [x -> plot x]
+
 end
 
 to set-ip-size
   ;; set size for product ip range
   if ip-size = "constant" [
     set size constant-ip
+    set radius size / 2
   ]
   if ip-size = "random" [
     set size random 20
+    set radius size / 2
   ]
 end
 
@@ -432,7 +538,7 @@ CHOOSER
 consumer-income
 consumer-income
 "constant" "random"
-0
+1
 
 SLIDER
 8
@@ -475,7 +581,7 @@ random-dist-product-rate
 random-dist-product-rate
 0
 0.05
-0.024
+0.008
 0.001
 1
 NIL
@@ -547,10 +653,10 @@ NIL
 HORIZONTAL
 
 OUTPUT
-474
-721
-716
-776
+988
+60
+1269
+141
 11
 
 BUTTON
@@ -738,7 +844,7 @@ constant-ip
 constant-ip
 0
 20
-9.0
+2.5
 .5
 1
 NIL
@@ -752,7 +858,7 @@ CHOOSER
 ip-size
 ip-size
 "constant" "random"
-0
+1
 
 BUTTON
 758
@@ -760,7 +866,7 @@ BUTTON
 864
 184
 Show IP Area
-ask products [make-ip-range]
+make-ip-range
 NIL
 1
 T
@@ -793,6 +899,75 @@ BUTTON
 226
 Clear IP Area
 ask ip-ranges [die]
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+759
+233
+826
+266
+Plot IP
+plot-ip
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+760
+273
+852
+306
+IP Interact
+ip-interact
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+PLOT
+760
+314
+960
+464
+ip power
+products
+weight of ip
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"flow" 1.0 1 -16777216 true "" ""
+
+BUTTON
+762
+477
+883
+510
+NIL
+update-ip-range
 NIL
 1
 T
