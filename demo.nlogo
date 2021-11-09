@@ -2,7 +2,6 @@ globals []
 breed [products product]
 breed [consumers consumer]
 breed [ip-ranges ip-range]
-breed [temp-ip-ranges temp-ip-range]
 undirected-link-breed [ip-links ip-link]
 undirected-link-breed [consumer-links consumer-link]
 
@@ -11,19 +10,18 @@ consumer-links-own [
   consumer-flow
 ]
 ip-links-own [
-  ip-strength
   ip-flow
-]
-temp-ip-ranges-own [
-  temp-ip-power
-  temp-radius
 ]
 ip-ranges-own [
   ip-power
   radius
+  nearby-ip
+  closest-ip
+  stopped?
 ]
 consumers-own [
   income
+  effective-income
 ]
 products-own [
   price
@@ -41,7 +39,6 @@ to setup
   resize-world -20 20 -20 20
 
   set-default-shape ip-ranges "thin ring"
-  set-default-shape temp-ip-ranges "thin ring"
 
   ask patches [
     if consumer-income = "random" [
@@ -54,6 +51,10 @@ to setup
     make-consumer
   ]
   make-product
+  make-ip-range
+  define-effective-income
+
+  set-origin-conditions
 
   reset-ticks
 end
@@ -65,9 +66,8 @@ to compute-revenue
 
   ask consumers [
 
-    ;; set up a condition for when consumer will chose general will-pay or ip-based will-pay
-
     will-pay
+
     let num-links count my-consumer-links
     ask my-consumer-links [
       set consumer-strength 1.0 / num-links
@@ -78,19 +78,21 @@ to compute-revenue
 
   ask products [
     let x-price price
-    set revenue sum [min (list x-price consumer-flow)] of my-consumer-links
+    set revenue sum [consumer-flow] of my-consumer-links * x-price
+    ; set revenue sum [min (list x-price consumer-flow)] of my-consumer-links
   ]
+end
 
-  set-current-plot "product revenue"
-  clear-plot
-  set-current-plot-pen "revenue"
-  set-plot-pen-interval 1
-  set-plot-x-range 0 max-pxcor
-  set-plot-y-range 0 max-pycor
+to set-origin-conditions
+  ask ip-ranges [
+    set stopped? false
+  ]
+end
 
-  ;; sort revenue and plot in descending order
-  let sort-rev reverse sort [revenue] of products
-  foreach sort-rev [x -> plot x]
+to plot-compute-revenue
+
+  compute-revenue
+  plot-revenue
 
 end
 
@@ -139,22 +141,40 @@ to make-consumer
     set size 0.1
     set color [pcolor] of patch-here
     set income [value] of patch-here
+    set effective-income income
   ]
 end
 
 ;; Pricing Procedures ;;
 
 to will-pay
-  ;; selecting buy strategy for consumers
-    if buy-strategy = "no limit" [
+  ;; selecting buy strategy for consumers outside of ip-range
+  if buy-strategy = "no limit" [
     ask products with-min [
       price + (distance-weight * distance myself)
-    ][create-consumer-link-with myself]
+    ] [create-consumer-link-with myself]
   ]
   if buy-strategy = "income driven" [
     ask products with-min [
       price + (distance-weight * distance myself)
-    ][if ((price + (distance-weight * distance myself)) < [income] of myself) [create-consumer-link-with myself]]
+    ][if ((price + (distance-weight * distance myself)) < [effective-income] of myself)[create-consumer-link-with myself]]
+  ]
+end
+
+to define-effective-income
+  ;; create an effective income as a function of income and ip
+  ;; effective income creates a greater willingness to pay
+  ;; modeling the enhanced desirability of products made with exclusive ip rights
+  ;; change in effective income should be dependent on exclusivity of ip rights
+  ;; consumers within overlapping ip claims do not experience as increased willingness to pay
+  ask ip-ranges [
+    let ip-weight count patches in-radius abs(radius - 1)
+    ask patches in-radius abs (radius - 1) [
+      set value value + ip-weight
+    ]
+  ]
+  ask consumers [
+    set effective-income [value] of patch-here
   ]
 end
 
@@ -167,14 +187,6 @@ to set-price
   ]
   if price-strategy = "economic driven" [
     set price product-cost + profit-margin
-  ]
-end
-
-;; create a will-pay based on ip ranges
-to must-buy-from
-  if buy-strategy = "no limit" [
-  ]
-  if buy-strategy = "income driven" [
   ]
 end
 
@@ -196,7 +208,7 @@ to reprice-brute-force
 
   set price position max-revenue revenues
 
-  compute-revenue
+  plot-compute-revenue
 end
 
 to reprice-dichotomous
@@ -238,21 +250,34 @@ to reprice-dichotomous
     set price midpoint-plus
   ]
 
-  output-type "i:"
-  output-type iterations
-  output-type " lb:"
-  output-type lower-bound
-  output-type " ub:"
-  output-type upper-bound
-  output-print ""
+  plot-price
+  plot-compute-revenue
+end
 
-  output-type "mp:"
-  output-type midpoint
-  output-type " mpr:"
-  output-type midpoint-revenue
-  output-type " mp+r:"
-  output-type midpoint-plus-revenue
-  output-print ""
+to-report reprice-revenue [new-price]
+  set price new-price
+  set color (list price 0 0)
+
+  compute-revenue
+  report revenue
+end
+
+to plot-revenue
+
+  set-current-plot "product revenue"
+  clear-plot
+  set-current-plot-pen "revenue"
+  set-plot-pen-interval 1
+  set-plot-x-range 0 max-pxcor
+  set-plot-y-range 0 max-pycor
+
+  ;; sort revenue and plot in descending order
+  let sort-rev reverse sort [revenue] of products
+  foreach sort-rev [x -> plot x]
+
+end
+
+to plot-price
 
   set-current-plot "product repriced"
   clear-plot
@@ -261,58 +286,44 @@ to reprice-dichotomous
   set-plot-x-range 0 max-pxcor
   set-plot-y-range 0 max-pycor
 
+  ;; sort price and plot in descending order
   let sort-price reverse sort [price] of products
   foreach sort-price [x -> plot x]
 
-  compute-revenue
-end
-
-to-report reprice-revenue [new-price]
-  set price new-price
-  set color (list price 0 0)
-
-  compute-revenue
-
-  report revenue
 end
 
 ;; intellectual property interactions ;;
 
 to ip-interact
-  ;; strength or potential of ip for each product is held in ip-power value
-  ;; determine if the ip of one product is invading the space of another
-  ;; ask turtle for the distance to another turtle
-
-  ; sort by turtle with higher ip-power (probably not perfect as there may be turtles with same ip-power)
-  ; goal - find turtle with highest ip-power (selecting starting turtle)
-
+  ; sort by turtle with higher ip-power
   foreach sort-by [ [a b] -> [ip-power] of a > [ip-power] of b ] ip-ranges [ t ->
     ask t [
+      ; iterate over all firms (via ip-ranges)
+      ask ip-ranges [
+        ; calculate the distance between t and another firm
+        let new-dist distance myself
 
-      let start-xcor xcor
-      let start-ycor ycor
+        ; set values for the radius and ip power of both firms
+        let r1 [radius] of t
+        let r2 radius
+        set r1 r1 - 1
+        set r2 r2 - 1
+        let p1 [ip-power] of t
+        let p2 ip-power
 
-      ; find the nearest product
-      let closest-product min-one-of other ip-ranges [distance myself]
-      let closest-xcor [xcor] of closest-product
-      let closest-ycor [ycor] of closest-product
+        ; determine if the two firms are overlapping
+        if (r1 - r2 < new-dist and new-dist < r1 + r2) [
+          ; if overlapping, determine which firm has higher ip power
 
-      let new-dist 0
-      let t-radius [radius] of t
-      let closest-product-radius [radius] of closest-product
+          if (p1 > p2) [
+            ; reduce the ip influence size of the firm with less ip power
+            set radius (r2 - .5)
+          ]
+          ; resize the firm's radius of ip inflence using new radius values
+          set size (radius * 2)
 
-      ; calculate distance between two products
-      set new-dist calculate-dist closest-xcor start-xcor closest-ycor start-ycor
-
-      ; check if two products' IP is overlapping, don't stop until no longer overlapping
-      if ( t-radius + closest-product-radius <= new-dist ) [
-
-        ifelse ( [ip-power] of t > [ip-power] of closest-product) [
-
-          ;reduce the size of the product with less ip-power
-          set radius (closest-product-radius - 1)
-        ][
-          set radius t-radius
+          set ip-power reduce + [ip-flow] of my-ip-links * radius
+          plot-ip
         ]
       ]
     ]
@@ -320,36 +331,121 @@ to ip-interact
 
 end
 
-to-report calculate-dist [x1 x2 y1 y2]
-  let dist ( sqrt ((x2 - x1) ^ 2 + (y2 - y1) ^ 2) )
-  report dist
-end
+to ip-interact-move
+  foreach sort-by [ [a b] -> [ip-power] of a > [ip-power] of b] ip-ranges [t ->
+    ask t [
+      ask ip-ranges [
 
-to update-ip-range
-  ask ip-links [die]
-  ask products [
-    hatch-temp-ip-ranges 1 [
-      set size (temp-radius * 2)
-      ifelse is-list? color
-      [set color lput transparency sublist color 0 3]
-      [set color lput transparency extract-rgb color]
-      __set-line-thickness 0.2
-      create-ip-link-with myself
-    ]
-    let num-links count my-ip-links
-    ask my-ip-links [
-      set ip-strength 1.0 / num-links
-      set ip-flow ip-strength * [value] of myself
+        let new-dist distance myself
+        let r1 [radius] of t
+        let r2 radius
+        set r1 r1 - 1
+        set r2 r2 - 1
+        let p1 [ip-power] of t
+        let p2 ip-power
+
+        set closest-ip min-one-of other ip-ranges [distance myself]
+        set nearby-ip other ip-ranges in-radius max list r1 r2
+        let num-nearby-ip count nearby-ip
+
+        if (r1 - r2 < new-dist and new-dist < r1 + r2) [
+            (ifelse
+              num-nearby-ip > 1 [
+                group-move
+              ]
+              num-nearby-ip = 1 [
+                single-move
+              ]
+              num-nearby-ip = 0 [
+                set stopped? true
+              ])
+            ]
+        if (r1 = new-dist or r2 = new-dist) [
+          if (r1 > r2) [
+            (ifelse
+              num-nearby-ip > 1 [
+                group-move
+              ]
+              num-nearby-ip = 1 [
+                single-move
+              ]
+              num-nearby-ip = 0 [
+                set stopped? true
+              ])
+            ]
+          ]
+        if (new-dist = 0 or new-dist < .1) [
+          if (r1 > r2) [
+            (ifelse
+              num-nearby-ip > 1 [
+                group-move
+              ]
+              num-nearby-ip = 1 [
+                single-move
+              ]
+              num-nearby-ip = 0 [
+                set stopped? true
+              ])
+          ]
+        ]
+          ask my-ip-links [
+            set ip-flow [value] of myself
+          ]
+        set ip-power reduce + [ip-flow] of my-ip-links * radius
+        plot-ip
+      ]
     ]
   ]
-  ask temp-ip-ranges [
-    set temp-ip-power sum [ip-flow] of my-ip-links * temp-radius
-  ]
-
 end
 
-to set-temp-ip-ranges-values
-  set temp-radius [radius] of ip-ranges
+to group-move
+  facexy (mean [xcor] of nearby-ip)
+         (mean [ycor] of nearby-ip)
+  rt 180
+  fd step-size
+  set stopped? false
+end
+
+to single-move
+  face closest-ip
+  fd step-size
+  set stopped? false
+end
+
+to ip-oversecting-area
+  ; sort by turtle with higher ip-power
+  foreach sort-by [ [a b] -> [ip-power] of a > [ip-power] of b ] ip-ranges [ t ->
+    ask t [
+      ; iterate over all firms (via ip-ranges)
+      ask ip-ranges [
+        ; calculate the distance between t and another firm
+        let new-dist distance myself
+
+        ; set values for the radius and ip power of both firms
+        let r1 [radius] of t
+        let r2 radius
+        set r1 r1 - 1
+        set r2 r2 - 1
+        let p1 [ip-power] of t
+        let p2 ip-power
+
+        ; determine if the two firms are overlapping
+        if (r1 - r2 < new-dist and new-dist < r1 + r2) [
+          ; if overlapping, calculate overlapping areas
+          let area-overlap find-intersecting-area r1 r2 new-dist
+        ]
+      ]
+    ]
+  ]
+end
+
+to-report find-intersecting-area [r1 r2 dist]
+  let dist1 ((r1 ^ 2 - r2 ^ 2 + dist ^ 2) / (2 * dist))
+  let dist2 (dist - dist1)
+  let area1 (r1 ^ 2 * acos(dist1 / r1) - dist1 * sqrt(r1 ^ 2 - dist1 ^ 2))
+  let area2 (r2 ^ 2 * acos(dist2 / r2) - dist2 * sqrt(r2 ^ 2 - dist2 ^ 2))
+
+  report precision (area1 + area2) 3
 end
 
 to make-ip-range
@@ -366,20 +462,19 @@ to make-ip-range
       ;; set thickness of halo to half a patch
       __set-line-thickness 0.3
       ;; create an undirected link from the product to the halo
-      create-ip-link-with myself
+      create-ip-link-with myself [tie]
     ]
 
   ;; calculates ip potential which is based on consumer income and size of product ip
-    let num-links count my-ip-links
     ask my-ip-links [
-      set ip-strength 1.0 / num-links
-      set ip-flow ip-strength * [value] of myself
+      set ip-flow [value] of myself
     ]
   ]
 
   ask ip-ranges [
-    set ip-power sum [ip-flow] of my-ip-links * radius
+    set ip-power reduce + [ip-flow] of my-ip-links * radius
   ]
+  plot-ip
 end
 
 to plot-ip
@@ -573,7 +668,7 @@ random-dist-product-rate
 random-dist-product-rate
 0
 0.05
-0.008
+0.013
 0.001
 1
 NIL
@@ -582,10 +677,10 @@ HORIZONTAL
 BUTTON
 83
 11
-182
+193
 45
-compute-revenue
-compute-revenue
+compute revenue
+plot-compute-revenue
 NIL
 1
 T
@@ -722,7 +817,7 @@ even-dist-product-rate
 even-dist-product-rate
 .02
 1
-0.15
+0.32
 .01
 1
 NIL
@@ -836,7 +931,7 @@ constant-ip
 constant-ip
 0
 20
-2.5
+5.5
 .5
 1
 NIL
@@ -853,9 +948,9 @@ ip-size
 1
 
 BUTTON
-758
+760
 151
-864
+866
 184
 Show IP Area
 make-ip-range
@@ -870,10 +965,10 @@ NIL
 1
 
 SLIDER
-760
-96
-932
-129
+759
+87
+931
+120
 transparency
 transparency
 0
@@ -885,29 +980,12 @@ NIL
 HORIZONTAL
 
 BUTTON
-759
-193
-864
-226
+760
+188
+865
+221
 Clear IP Area
-ask ip-ranges [die]
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-759
-233
-826
-266
-Plot IP
-plot-ip
+ask ip-ranges [die]\nplot-ip
 NIL
 1
 T
@@ -921,9 +999,9 @@ NIL
 BUTTON
 760
 273
-852
+877
 306
-IP Interact
+Reduce IP Range
 ip-interact
 NIL
 1
@@ -954,12 +1032,12 @@ PENS
 "flow" 1.0 1 -16777216 true "" ""
 
 BUTTON
-762
-477
-883
-510
-NIL
-update-ip-range
+760
+236
+876
+269
+Move IP Range
+ip-interact-move
 NIL
 1
 T
@@ -969,6 +1047,21 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+763
+487
+935
+520
+step-size
+step-size
+.1
+10
+5.0
+.1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
