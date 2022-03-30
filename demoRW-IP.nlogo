@@ -21,6 +21,7 @@ ip-ranges-own [
 ]
 consumers-own [
   income
+  effective-income
 ]
 products-own [
   price
@@ -29,6 +30,7 @@ products-own [
 ]
 patches-own [
   value
+  in-overlap?
 ]
 
 ;; Setup Procedures ;;
@@ -51,6 +53,7 @@ to setup
   ]
   make-product
   make-ip-range
+  define-effective-income
 
   set-origin-conditions
 
@@ -61,7 +64,6 @@ end
 
 to compute-revenue
   ask consumer-links [ die ]
-
   ask consumers [
 
     will-pay
@@ -84,6 +86,9 @@ end
 to set-origin-conditions
   ask ip-ranges [
     set stopped? false
+  ]
+  ask patches [
+    set in-overlap? false
   ]
 end
 
@@ -139,22 +144,35 @@ to make-consumer
     set size 0.1
     set color [pcolor] of patch-here
     set income [value] of patch-here
+    set effective-income income
   ]
 end
 
 ;; Pricing Procedures ;;
 
 to will-pay
-  ;; selecting buy strategy for consumers outside of ip-range
-  if buy-strategy = "no limit" [
-    ask products with-min [
-      price + (distance-weight * distance myself)
-    ] [create-consumer-link-with myself]
+  ask products with-min [
+    price + (distance-weight * distance myself)
+  ][if ((price + (distance-weight * distance myself)) < [effective-income] of myself)[create-consumer-link-with myself]]
+end
+
+to define-effective-income
+  ;; create an effective income as a function of income and ip
+  ;; effective income creates a greater willingness to pay
+  ;; modeling the enhanced desirability of products made with exclusive ip rights
+  ;; change in effective income should be dependent on exclusivity of ip rights
+  ;; consumers within overlapping ip claims do not experience as increased willingness to pay
+  ask ip-ranges [
+    let ip-weight count patches in-radius abs(radius - 1)
+    ask patches in-radius abs (radius - 1) [
+      in-oversecting-area?
+      ifelse in-overlap? = false [
+        set value value + ip-weight
+      ][set value value + (ip-weight / 2)]
+    ]
   ]
-  if buy-strategy = "income driven" [
-    ask products with-min [
-      price + (distance-weight * distance myself)
-    ][if ((price + (distance-weight * distance myself)) < [income] of myself)[create-consumer-link-with myself]]
+  ask consumers [
+    set effective-income [value] of patch-here
   ]
 end
 
@@ -240,21 +258,6 @@ to-report reprice-revenue [new-price]
 
   compute-revenue
   report revenue
-end
-
-to change-link-color
-  ask ip-links [
-    let color-linked-product [color] of end1
-    let color-linked-ip [color] of end2
-    let who-linked-ip [who] of end2
-    set color-linked-ip color-linked-product
-    ask ip-range who-linked-ip [
-      set color color-linked-ip
-      ifelse is-list? color
-      [set color lput transparency sublist color 0 3]
-      [set color lput transparency extract-rgb color]
-    ]
-  ]
 end
 
 to plot-revenue
@@ -407,7 +410,7 @@ to single-move
   set stopped? false
 end
 
-to ip-oversecting-area
+to in-oversecting-area?
   ; sort by turtle with higher ip-power
   foreach sort-by [ [a b] -> [ip-power] of a > [ip-power] of b ] ip-ranges [ t ->
     ask t [
@@ -424,10 +427,13 @@ to ip-oversecting-area
         let p1 [ip-power] of t
         let p2 ip-power
 
-        ; determine if the two firms are overlapping
-        if (r1 - r2 < new-dist and new-dist < r1 + r2) [
-          ; if overlapping, calculate overlapping areas
-          let area-overlap find-intersecting-area r1 r2 new-dist
+        ask patch-here [
+          ; determine if the two firms are overlapping
+          if (r1 - r2 < new-dist and new-dist < r1 + r2) [
+            ; if overlapping, calculate overlapping areas
+            let area-overlap find-intersecting-area r1 r2 new-dist
+            set in-overlap? true
+          ]
         ]
       ]
     ]
@@ -594,9 +600,9 @@ PENS
 
 CHOOSER
 8
-377
+328
 146
-422
+373
 price-strategy
 price-strategy
 "random" "constant" "economic driven"
@@ -604,19 +610,9 @@ price-strategy
 
 CHOOSER
 8
-331
+284
 146
-376
-buy-strategy
-buy-strategy
-"income driven" "no limit"
-0
-
-CHOOSER
-8
-285
-146
-330
+329
 consumer-income
 consumer-income
 "constant" "random"
@@ -747,7 +743,7 @@ BUTTON
 105
 550
 fast reprice
-ask products with-min [revenue] [\nreprice-dichotomous\n]\nchange-link-color
+ask products with-min [revenue] [\nreprice-dichotomous\n]
 NIL
 1
 T
@@ -795,9 +791,9 @@ PENS
 
 CHOOSER
 8
-423
+374
 146
-468
+419
 product-place
 product-place
 "even disp" "random"
